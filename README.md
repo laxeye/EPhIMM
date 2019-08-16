@@ -29,9 +29,9 @@ Default output folder is `output-DATE`, where DATE is current date. You can prov
 
 If You work with nucleotide genomic sequences use flag **-p** to predict CDS with Prodigal.
 
-After marker genes search. fetching and alignment You will be asked for manual or automatic alignment editing. In case of automatic columns containing more than 50% gaps will be removed from the alignment using java tool *aleditor.jar*. In case of manual editing open file `all.aligned.faa` in the output folder, make changes and save it. You will be prompted for relative path to edited file, e.g. if You saved file as edited.version.faa in final directory type `final/edited.version.faa`.
+After marker genes search. fetching and alignment You will be asked for manual or automatic alignment editing. In case of automatic columns containing more than 50% gaps will be removed from the alignment using java tool *aleditor.jar* (source code will be released soon). In case of manual editing open file `all.aligned.faa` in the output folder, make changes and save it. You will be prompted for relative path to edited file, e.g. if You saved file as `edited.version.faa` in `results` directory type `results/edited.version.faa`.
 
-You can check `genomes.stats.txt` and `hmm.stats.txt` for missing and duplicated genes. Resulting alignment and tree will be stored in `final/` directory.
+You can check `genomes.stats.txt` and `hmm.stats.txt` for missing and duplicated genes. Resulting alignment and tree will be stored in output directory (user defined or auto-created).
 
 
 ## Markers
