@@ -38,7 +38,7 @@ while (( "$#" )); do
       ;;
     -p|--predict-proteins)
       PREDICT=1
-      shift 1
+      shift
       ;;
     -h|--help)
       echo -e "\nEPhIMM v 0.1 - Express Phylogenetic Inference based on Multiple Markers\n"
@@ -82,7 +82,7 @@ echo "#Analysys started at $(date)" | tee $logfile
 # Predict CDS
 if [[ $PREDICT -eq 1 ]]; then
     echo -e "#$(date +"%T")\tProtein prediction started" | tee -a $logfile
-    for i in *fna; do prodigal -o /dev/null -i $file -a ${i/fna/faa} -q; done
+    for file in *fna; do prodigal -o /dev/null -i $file -a ${file/fna/faa} -q; done
 fi
 
 # Indexing fasta files
@@ -138,10 +138,10 @@ done;
 echo -e "#$(date +"%T")\tCollecting statistics" | tee -a $logfile
 
 echo -e "#Genome\tMissing markers\tMultiple copies" > $OUTPUTFOLDER/genomes.stats.txt
-for i in *faa;
-    do missing=`grep $i $logfile | grep -c "not found"`;
-    multi=`grep $i $logfile | grep -c "many copies"`;
-    echo -e "$i\t$missing\t$multi" >> $OUTPUTFOLDER/genomes.stats.txt;
+for file in *faa;
+    do missing=`grep $file $logfile | grep -c "not found"`;
+    multi=`grep $file $logfile | grep -c "many copies"`;
+    echo -e "$file\t$missing\t$multi" >> $OUTPUTFOLDER/genomes.stats.txt;
 done;
 
 echo "#Genomes with more than 50% missing marker genes:" > $OUTPUTFOLDER/bad.genomes.txt
@@ -196,6 +196,8 @@ fi
 echo -e "#$(date +"%T")\tPerforming phylogenetic inference" | tee -a $logfile
 
 fasttree -gamma -lg $alnfilename > $OUTPUTFOLDER/all.markers.nwk
+
+echo -e "#$(date +"%T")\tWorkflow finished" | tee -a $logfile
 
 #Low number of genomes and markers:
 #raxmlHPC -f a -x 2019 -N 100 -m PROTCATLG -n markers -s alnfilename -p 2019 -T $threads
