@@ -117,7 +117,7 @@ for marker in $(ls $MRKDIR/);
     case $lines in
         0)
             echo -e "Marker gene \"$marker\" not found in $file!" | tee -a $logfile; 
-    		echo -e ">S2.${file/.faa/}\nXXXXXX" > $marker/$file;
+    		echo -e ">$marker.${file/.faa/}\nXXXXXX" > $marker/$file;
     		;;
         1)
             esl-sfetch -o $marker/$file -n $marker.${file/.faa/} $file $(awk '{print $1}' $marker/${file/faa/out}) > /dev/null;
@@ -145,9 +145,9 @@ for i in *faa;
 done;
 
 echo "#Genomes with more than 50% missing marker genes:" > $OUTPUTFOLDER/bad.genomes.txt
-grep -v "^#" genomes.stats.txt | awk '$2 > "'"$markercount"'"/2' >> $OUTPUTFOLDER/bad.genomes.txt
+grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$2 > "'"$markercount"'"/2' >> $OUTPUTFOLDER/bad.genomes.txt
 echo "#Genomes with more than 20% multi-copy marker genes:" >> $OUTPUTFOLDER/bad.genomes.txt
-grep -v "^#" genomes.stats.txt | awk '$3 > "'"$markercount"'"/5' >> $OUTPUTFOLDER/bad.genomes.txt
+grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$3 > "'"$markercount"'"/5' >> $OUTPUTFOLDER/bad.genomes.txt
 
 echo -e "#Marker\tMissing markers\tMultiple copies" > hmm.stats.txt
 for marker in $(ls $MRKDIR/);
@@ -157,9 +157,9 @@ for marker in $(ls $MRKDIR/);
 done
 
 echo "#Markers missing in more than 50% genomes:" > $OUTPUTFOLDER/bad.hmms.txt
-grep -v "^#" hmm.stats.txt | awk '$2 > "'"$genomecount"'"/2' >> $OUTPUTFOLDER/bad.hmms.txt
+grep -v "^#" $OUTPUTFOLDER/hmm.stats.txt | awk '$2 > "'"$genomecount"'"/2' >> $OUTPUTFOLDER/bad.hmms.txt
 echo "#Markers with multiple copies in more than 20% genomes:" >> $OUTPUTFOLDER/bad.hmms.txt
-grep -v "^#" hmm.stats.txt | awk '$3 > "'"$genomecount"'"/5' >> $OUTPUTFOLDER/bad.hmms.txt
+grep -v "^#" $OUTPUTFOLDER/hmm.stats.txt | awk '$3 > "'"$genomecount"'"/5' >> $OUTPUTFOLDER/bad.hmms.txt
 
 for file in *faa;
 do 
