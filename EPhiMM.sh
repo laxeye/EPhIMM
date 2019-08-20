@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# EPhIMM - Express Phylogenetic Inference based on Multiple Markers
+# Written by Aleksei Korzhenkov, 2019
+# https://github.com/laxeye/EPhIMM
+
 #Get a path to script
 EPHIMMPATH=$(dirname $(readlink -f $0))
 #Defaults
@@ -41,8 +45,10 @@ while (( "$#" )); do
       shift
       ;;
     -h|--help)
-      echo -e "\nEPhIMM v 0.1 - Express Phylogenetic Inference based on Multiple Markers\n"
-      echo -n "Usage: $0 [-p] [-e|--evalue <N>] [-g|--max-gap-fraction <N>] [-o|--output <directory>] "
+      echo -e "\nEPhIMM v 0.1 - Express Phylogenetic Inference based on Multiple Markers"
+      echo -e "Written by Aleksei Korzhenkov, 2019"
+      echo -e "For new versions please check https://github.com/laxeye/EPhIMM\n"
+      echo -n "Usage: $0 [-p|--predict-proteins] [-e|--evalue <N>] [-g|--max-gap-fraction <N>] [-o|--output <directory>] "
       echo -e "[-m|--markers <directory>] [-h|--help]\n"
       exit 0
       ;;
@@ -116,7 +122,7 @@ for marker in $(ls $MRKDIR/);
 
     case $lines in
         0)
-            echo -e "Marker gene \"$marker\" not found in $file!" | tee -a $logfile; 
+            echo -e "Marker gene \"$marker\" not found in $file!" | tee -a $logfile;
     		echo -e ">$marker.${file/.faa/}\nXXXXXX" > $marker/$file;
     		;;
         1)
@@ -162,7 +168,7 @@ echo "#Markers with multiple copies in more than 20% genomes:" >> $OUTPUTFOLDER/
 grep -v "^#" $OUTPUTFOLDER/hmm.stats.txt | awk '$3 > "'"$genomecount"'"/5' >> $OUTPUTFOLDER/bad.hmms.txt
 
 for file in *faa;
-do 
+do
     if ! grep -q "$file" $OUTPUTFOLDER/bad.genomes.txt ; then
         echo ">${file/.faa/}" > $OUTPUTFOLDER/$file;
         cat *hmm/$file | sed 's/\*//' | grep -v ">" | grep -v "^X\+$"  >> $OUTPUTFOLDER/$file;
