@@ -123,13 +123,15 @@ for marker in $(ls $MRKDIR/);
     case $lines in
         0)
             echo -e "Marker gene \"$marker\" not found in $file!" | tee -a $logfile;
-    		echo -e ">$marker.${file/.faa/}\nXXXXXX" > $marker/$file;
-    		;;
+    		    echo -e ">$marker.${file/.faa/}\nXXXXXX" > $marker/$file;
+            echo "$marker.${file/.faa/}" >> $marker/missing.txt;
+        		;;
         1)
             esl-sfetch -o $marker/$file -n $marker.${file/.faa/} $file $(awk '{print $1}' $marker/${file/faa/out}) > /dev/null;
             ;;
         *)
             echo -e "Marker gene \"$marker\" has many copies in $file! You should inspect sequences manually!" | tee -a $logfile;
+            echo "$marker.${file/.faa/}" >> $marker/multicopy.txt;
             let n=1
             for line in $(awk '{print $1}' $marker/${file/faa/out})
                 do esl-sfetch -n $marker.${file/.faa/}.$n $file $line >> $marker/$file;
@@ -140,6 +142,28 @@ for marker in $(ls $MRKDIR/);
 
     done;
 done;
+
+
+for marker in $(ls $MRKDIR/); do
+  if [[ -f $marker/multicopy.txt ]] ; then 
+    cat $marker/*faa > $marker/$marker.1.faa ;
+    if [[ -f $marker/missing.txt ]] ; then
+      java -jar ~/source/BioKotlin.jar RemoveByName $marker/$marker.1.faa $marker/missing.txt > $marker/$marker.faa ;
+      rm -f $marker/$marker.1.faa
+    else
+      mv $marker/$marker.1.faa $marker/$marker.faa ;
+    fi
+    mafft --auto $marker/$marker.faa > $marker/aln.faa ;
+    java -jar ~/source/BioKotlin.jar DistMeanProtJC $marker/aln.faa | grep -f $marker/multicopy.txt > $marker/multicopy.dist ;
+    rm -f $marker/aln.faa
+    for mcopy in $(cat $marker/multicopy.txt); do
+      grep $mcopy $marker/multicopy.dist | sort -nk 2 | cut -f 1 | head -1 > $marker/keep.txt
+      genome=${mcopy/$marker./}
+      java -jar ~/source/BioKotlin.jar ExtractByName $marker/$genome.faa $marker/keep.txt > $marker/$genome.1.faa
+      mv $marker/$genome.1.faa $marker/$genome.faa
+    done
+  fi
+done
 
 echo -e "#$(date +"%T")\tCollecting statistics" | tee -a $logfile
 
@@ -206,4 +230,4 @@ fasttree -gamma -lg $alnfilename > $OUTPUTFOLDER/all.markers.nwk
 echo -e "#$(date +"%T")\tWorkflow finished" | tee -a $logfile
 
 #Low number of genomes and markers:
-#raxmlHPC -f a -x 2019 -N 100 -m PROTCATLG -n markers -s alnfilename -p 2019 -T $threads
+#raxmlHPC -f a -x 2019 -N 100 -m PROTCATLG -n markers -s $alnfilename -p 2019 -T $threads
