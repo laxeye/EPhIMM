@@ -148,18 +148,18 @@ for marker in $(ls $MRKDIR/); do
   if [[ -f $marker/multicopy.txt ]] ; then 
     cat $marker/*faa > $marker/$marker.1.faa ;
     if [[ -f $marker/missing.txt ]] ; then
-      java -jar ~/source/BioKotlin.jar RemoveByName $marker/$marker.1.faa $marker/missing.txt > $marker/$marker.faa ;
+      java -jar $EPHIMMPATH/BioKotlin.jar RemoveByName $marker/$marker.1.faa $marker/missing.txt > $marker/$marker.faa ;
       rm -f $marker/$marker.1.faa
     else
       mv $marker/$marker.1.faa $marker/$marker.faa ;
     fi
     mafft --auto $marker/$marker.faa > $marker/aln.faa ;
-    java -jar ~/source/BioKotlin.jar DistMeanProtJC $marker/aln.faa | grep -f $marker/multicopy.txt > $marker/multicopy.dist ;
+    java -jar $EPHIMMPATH/BioKotlin.jar DistMeanProtJC $marker/aln.faa | grep -f $marker/multicopy.txt > $marker/multicopy.dist ;
     rm -f $marker/aln.faa
     for mcopy in $(cat $marker/multicopy.txt); do
       grep $mcopy $marker/multicopy.dist | sort -nk 2 | cut -f 1 | head -1 > $marker/keep.txt
       genome=${mcopy/$marker./}
-      java -jar ~/source/BioKotlin.jar ExtractByName $marker/$genome.faa $marker/keep.txt > $marker/$genome.1.faa
+      java -jar $EPHIMMPATH/BioKotlin.jar ExtractByName $marker/$genome.faa $marker/keep.txt > $marker/$genome.1.faa
       mv $marker/$genome.1.faa $marker/$genome.faa
     done
   fi
@@ -217,7 +217,7 @@ Press \"Y\" if You like to clean gaps automaticly: " response
 
 if [[ $response -eq "Y" ]]; then
     alnfilename="$OUTPUTFOLDER/all.aligned.e.faa"
-    java -jar $EPHIMMPATH/aleditor.jar $OUTPUTFOLDER/all.aligned.faa $MAXGAPFRACTION > $alnfilename
+    java -jar $EPHIMMPATH/BioKotlin.jar AlignmentClearGaps $OUTPUTFOLDER/all.aligned.faa $MAXGAPFRACTION > $alnfilename
     echo -e "#$(date +"%T")\tPerforming autoedit of MSA" | tee -a $logfile
 else
     read -p "Provide a filename of edited alignment:" alnfilename
