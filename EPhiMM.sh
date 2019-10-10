@@ -179,7 +179,7 @@ grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$2 > "'"$markercount"'"/2' >
 echo "#Genomes with more than 20% multi-copy marker genes:" >> $OUTPUTFOLDER/bad.genomes.txt
 grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$3 > "'"$markercount"'"/5' >> $OUTPUTFOLDER/bad.genomes.txt
 
-echo -e "#Marker\tMissing markers\tMultiple copies" > hmm.stats.txt
+echo -e "#Marker\tMissing markers\tMultiple copies" > $OUTPUTFOLDER/hmm.stats.txt
 for marker in $(ls $MRKDIR/);
     do missing=`grep "$marker" $logfile | grep -c "not found"`
     multi=`grep "$marker" $logfile | grep -c "many"`
