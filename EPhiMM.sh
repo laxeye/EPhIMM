@@ -9,6 +9,7 @@ EPHIMMPATH=$(dirname $(readlink -f $0))
 #Defaults
 MRKDIR="$EPHIMMPATH/markers/"
 HMMEVALUE=1e-6
+AUTO=0
 #Set maximum gap fraction in column to leave it in alignment
 MAXGAPFRACTION=50
 OUTPUTFOLDER="output-$(date +%F)"
@@ -26,6 +27,7 @@ while (( "$#" )); do
     -g|--max-gap-fraction)
       if [[ $2 -gt 0 && $2 -lt 100 ]]; then
         MAXGAPFRACTION=$2
+        AUTO=1
       else
         echo "Errror: Max gap fraction should be in (0,100)!"
         exit 1
@@ -44,12 +46,17 @@ while (( "$#" )); do
       PREDICT=1
       shift
       ;;
+    -a|--auto)
+      AUTO=1
+      shift
+      ;;
     -h|--help)
       echo -e "\nEPhIMM v 0.1 - Express Phylogenetic Inference based on Multiple Markers"
       echo -e "Written by Aleksei Korzhenkov, 2019"
       echo -e "For new versions please check https://github.com/laxeye/EPhIMM\n"
       echo -n "Usage: $0 [-p|--predict-proteins] [-e|--evalue <N>] [-g|--max-gap-fraction <N>] [-o|--output <directory>] "
-      echo -e "[-m|--markers <directory>] [-h|--help]\n"
+      echo -e "[-m|--markers <directory>] [-a|--auto]\n"
+      echo -e "[-h|--help]\n"
       exit 0
       ;;
     --) # end argument parsing
@@ -58,7 +65,7 @@ while (( "$#" )); do
       ;;
     -*|--*=) # unsupported flags
       echo "Error: Unsupported flag $1" >&2
-      echo "Possible flags: -m, -e, -g, -o, -p " >&2
+      echo "Possible flags: -m, -e, -g, -o, -p, -a " >&2
       exit 1
       ;;
     *) # preserve positional arguments
@@ -209,18 +216,28 @@ echo -e "#$(date +"%T")\tPerforming MSA" | tee -a $logfile
 
 mafft --auto  $OUTPUTFOLDER/all.markers.faa | sed 's/X/-/g' > $OUTPUTFOLDER/all.aligned.faa
 
-echo "It's strictly recommended to check alignment file \"$OUTPUTFOLDER/all.aligned.faa\""
-echo "You may automaticly delete all columns with more than 50% gaps"
+alnfilename="$OUTPUTFOLDER/all.aligned.e.faa"
 
-read -p "Press \"N\" if You like to edit file manually.
-Press \"Y\" if You like to clean gaps automaticly: " response
+if [[ $AUTO -eq 1 ]]; then
 
-if [[ $response -eq "Y" ]]; then
-    alnfilename="$OUTPUTFOLDER/all.aligned.e.faa"
-    java -jar $EPHIMMPATH/BioKotlin.jar AlignmentClearGaps $OUTPUTFOLDER/all.aligned.faa $MAXGAPFRACTION > $alnfilename
-    echo -e "#$(date +"%T")\tPerforming autoedit of MSA" | tee -a $logfile
+  java -jar $EPHIMMPATH/BioKotlin.jar AlignmentClearGaps $OUTPUTFOLDER/all.aligned.faa $MAXGAPFRACTION > $alnfilename
+  echo -e "#$(date +"%T")\tPerforming autoedit of MSA" | tee -a $logfile
+
 else
-    read -p "Provide a filename of edited alignment:" alnfilename
+
+  echo "It's strictly recommended to check alignment file \"$OUTPUTFOLDER/all.aligned.faa\""
+  echo "You may automaticly delete all columns with more than $MAXGAPFRACTION% gaps"
+
+  read -p "Press \"N\" if You like to edit file manually.
+  Press \"Y\" if You like to clean gaps automaticly: " response
+
+  if [[ $response -eq "Y" ]]; then
+      java -jar $EPHIMMPATH/BioKotlin.jar AlignmentClearGaps $OUTPUTFOLDER/all.aligned.faa $MAXGAPFRACTION > $alnfilename
+      echo -e "#$(date +"%T")\tPerforming autoedit of MSA" | tee -a $logfile
+  else
+      read -p "Provide a filename of edited alignment:" alnfilename
+  fi
+
 fi
 
 echo -e "#$(date +"%T")\tPerforming phylogenetic inference" | tee -a $logfile
