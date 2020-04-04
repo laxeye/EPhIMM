@@ -95,7 +95,12 @@ echo "#Analysys started at $(date)" | tee $logfile
 # Predict CDS
 if [[ $PREDICT -eq 1 ]]; then
     echo -e "#$(date +"%T")\tProtein prediction started" | tee -a $logfile
-    for file in *fna; do prodigal -o /dev/null -i $file -a ${file/fna/faa} -q; done
+    for file in *fna;
+      do aafile=${file/fna/faa};
+      if ! [[ -f $aafile ]]; then
+        prodigal -o /dev/null -i $file -a $aafile -q;
+      fi;
+    done
 fi
 
 # Indexing fasta files
