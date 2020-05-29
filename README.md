@@ -6,14 +6,16 @@
 
 ## Dependencies
 
-* **esl-sfetch** from Easel for <https://github.com/EddyRivasLab/easel>
+* **hmmer** <http://hmmer.org/>
+* **esl-sfetch** from Easel for <https://github.com/EddyRivasLab/easel> for aequence extraction
 * **mafft** <https://mafft.cbrc.jp/alignment/software/> for multiple sequence alignment
 * **fasttree** <http://www.microbesonline.org/fasttree/> for tree inference
-* **Java 8** for autoedit of alignment (typically installed in Linux ditributions)
+* **prodigal** <https://github.com/hyattpd/Prodigal> for protein prediction
+* **Java** 8 or newer (11) for autoedit of alignment (typically installed in Linux ditributions)
 
-Install some of them with `conda install mafft fasttree easel`
+You may install them with conda: 
 
-If You start from nucleotide genomic sequences You will need **prodigal** <https://github.com/hyattpd/Prodigal>. It could be installed with *conda* or Your linux distribution's package manager like *apt*, *yum* etc.
+`conda install mafft fasttree easel hmmer`
 
 
 ## How it works
@@ -23,6 +25,7 @@ Extract HMM profiles for marker genes from `markers.tar.gz` using `tar xzf marke
 Run EPhIMM.sh in directory containing files with protein sequences. E.g. if You downloaded EPhiMM to `/home/user/software/EPhiMM/` and data located in `/home/user/data/mygenomes`:
 
 `user@pc:~/ cd /home/user/data/mygenomes`
+
 `user@pc:/home/user/data/mygenomes$ /home/user/software/EPhiMM/EPhiMM.sh`
 
 Default output folder is `output-DATE`, where DATE is current date. You can provide different output folder using flag **-o**, e.g. `EPhiMM.sh -o MyOutput`.
@@ -33,6 +36,24 @@ After marker genes search. fetching and alignment You will be asked for manual o
 
 You can check `genomes.stats.txt` and `hmm.stats.txt` for missing and duplicated genes. Resulting alignment and tree will be stored in output directory (user defined or auto-created).
 
+## Options
+
+-o|--output <directory> - name of directory to store results
+
+-p|--predict-proteins - predict proteins from genomic sequences
+
+-a|--auto - perform autoedit of alignment (default: off)
+
+-g|--max-gap-fraction <0-100> - remove columns having more than N% gaps from the alignment (implies --auto)
+
+-m|--markers <directory> - directory with hmm profiles of target genes
+
+-e|--evalue <N> - e-value for HMMER
+
+-t|--threads <N> - number of threads for HMMER
+
+-h|--help - show help message
+
 
 ## Markers
 
@@ -40,9 +61,13 @@ Marker genes should be provided as HMM profiles.
 
 Initial set containing 41 single copy marker genes was taken from CheckM software (Parks et al., 2015), 2 markers from the original set(TIGR00344 and TIGR00422) were excluded due to multiple hits.
 
-If You like to use Your own set of markers put `.hmm` files in a directory, e.g. /home/user/MyMarkers, and run the tool providing path to the markers with flag **-m**: `EPhIMM.sh -m /home/user/MyMarkers/`.
+If You like to use Your own set of markers put `.hmm` files in a directory, e.g. /home/user/MyMarkers, and run the tool providing path to the markers with option **-m**: 
 
-Default e-value for hmmsearch is 1e-6, You can set it with glag **-e**: e.g. `EPhIMM.sh -e 1e-10`.
+`EPhIMM.sh -m /home/user/MyMarkers/`.
+
+Default e-value for hmmsearch is 1e-6, You can set it with option **-e**, e.g.: 
+
+`EPhIMM.sh -e 1e-10`.
 
 
 ## References
