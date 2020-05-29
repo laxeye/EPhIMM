@@ -29,7 +29,7 @@ while (( "$#" )); do
         MAXGAPFRACTION=$2
         AUTO=1
       else
-        echo "Errror: Max gap fraction should be in (0,100)!"
+        echo "Error: Max gap fraction should be greater than 0 and less than 100"
         exit 1
       fi
       shift 2
@@ -50,13 +50,18 @@ while (( "$#" )); do
       AUTO=1
       shift
       ;;
+    -t|--threads)
+      THREADS=$2
+      shift 2
+      ;;
     -h|--help)
       echo -e "\nEPhIMM v 0.1 - Express Phylogenetic Inference based on Multiple Markers"
-      echo -e "Written by Aleksei Korzhenkov, 2019"
+      echo -e "Written by Aleksei Korzhenkov, 2019-2020"
       echo -e "For new versions please check https://github.com/laxeye/EPhIMM\n"
-      echo -n "Usage: $0 [-p|--predict-proteins] [-e|--evalue <N>] [-g|--max-gap-fraction <N>] [-o|--output <directory>] "
-      echo -e "[-m|--markers <directory>] [-a|--auto]\n"
-      echo -e "[-h|--help]\n"
+      echo -n "Usage: $0 [-p|--predict-proteins] [-e|--evalue <N>] [-g|--max-gap-fraction <0-100>] [-o|--output <directory>] "
+      echo -e "[-m|--markers <directory>] [-a|--auto] [-t|--threads <N>]"
+      echo "or"
+      echo -e "$0 [-h|--help]\n"
       exit 0
       ;;
     --) # end argument parsing
@@ -77,11 +82,12 @@ done
 
 
 #Using half of available CPU threads for hmmsearch
-threads=`grep -c "^processor" /proc/cpuinfo`
-if [[ $threads -gt 1 ]]; then
-    (( threads/=2 ))
-else
-    threads=1
+if [[ -z $THREADS ]]; then
+  THREADS=1
+fi
+maxthreads=`grep -c "^processor" /proc/cpuinfo`
+if [[ $THREADS -gt $maxthreads ]]; then
+    THREADS=$maxthreads
 fi
 
 if [[ -d $OUTPUTFOLDER ]]; then
@@ -128,7 +134,7 @@ for marker in $(ls $MRKDIR/);
     mrkpath=$MRKDIR$marker
 
     for file in *faa;
-    do hmmsearch --cpu $threads -E $HMMEVALUE -o /dev/null --tblout /dev/stdout $mrkpath $file | grep -v "^#" > $marker/${file/faa/out};
+    do hmmsearch --cpu $THREADS -E $HMMEVALUE -o /dev/null --tblout /dev/stdout $mrkpath $file | grep -v "^#" > $marker/${file/faa/out};
 
     lines=`wc -l < $marker/${file/faa/out}`
 
@@ -165,7 +171,7 @@ for marker in $(ls $MRKDIR/); do
     else
       mv $marker/$marker.1.faa $marker/$marker.faa ;
     fi
-    mafft --auto $marker/$marker.faa > $marker/aln.faa ;
+    mafft --quiet --auto $marker/$marker.faa > $marker/aln.faa ;
     java -jar $EPHIMMPATH/BioKotlin.jar DistMeanProtJC $marker/aln.faa | grep -f $marker/multicopy.txt > $marker/multicopy.dist ;
     rm -f $marker/aln.faa
     for mcopy in $(cat $marker/multicopy.txt); do
@@ -219,7 +225,7 @@ echo "Concatenated markers stored in \"$OUTPUTFOLDER/all.markers.faa\""
 
 echo -e "#$(date +"%T")\tPerforming MSA" | tee -a $logfile
 
-mafft --auto  $OUTPUTFOLDER/all.markers.faa | sed 's/X/-/g' > $OUTPUTFOLDER/all.aligned.faa
+mafft --thread -1 --auto  $OUTPUTFOLDER/all.markers.faa | sed 's/X/-/g' > $OUTPUTFOLDER/all.aligned.faa
 
 alnfilename="$OUTPUTFOLDER/all.aligned.e.faa"
 
@@ -251,5 +257,3 @@ fasttree -gamma -lg $alnfilename > $OUTPUTFOLDER/all.markers.nwk
 
 echo -e "#$(date +"%T")\tWorkflow finished" | tee -a $logfile
 
-#Low number of genomes and markers:
-#raxmlHPC -f a -x 2019 -N 100 -m PROTCATLG -n markers -s $alnfilename -p 2019 -T $threads
