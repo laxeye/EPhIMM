@@ -6,14 +6,17 @@
 
 #Get a path to script
 EPHIMMPATH=$(dirname $(readlink -f $0))
+
 #Defaults
 MRKDIR="$EPHIMMPATH/markers/"
-HMMEVALUE=1e-6
-AUTO=0
-#Set maximum gap fraction in column to leave it in alignment
-MAXGAPFRACTION=50
-OUTPUTFOLDER="output-$(date +%F)"
-PREDICT=0
+OUTPUTFOLDER="output-$(date +%F)"  #Default name includes current date
+EVALUE=1e-6   # e-value for HMMER or BLAST
+AUTO=0        # 1 to perform autoedit of alignment
+MAXGAPFRACTION=50  # Set maximum gap fraction in column to leave it in the alignment.
+PREDICT=0     # 1 to predict protein coding genes. Input will be genome assemblies *.fna.
+USEBLAST=0    # 1 to use BLASTp homology search instead of HMMER (default).
+SEQEXT="hmm"  # Extension of markers. Default is "hmm" for HMMER.
+MAXMULTICOPYSHARE=0.5  # Max number of genomes, having more than one copy of marker gene.
 
 #Parse args
 while (( "$#" )); do
@@ -22,6 +25,14 @@ while (( "$#" )); do
       if [[ -d $2 ]]; then
         MRKDIR=$2
       fi
+      shift 2
+      ;;
+    -s|--sequences)
+      if [[ -d $2 ]]; then
+        MRKDIR=$2
+      fi
+      SEQEXT="faa"
+      USEBLAST=1
       shift 2
       ;;
     -g|--max-gap-fraction)
@@ -35,7 +46,7 @@ while (( "$#" )); do
       shift 2
       ;;
     -e|--evalue)
-      HMMEVALUE=$2
+      EVALUE=$2
       shift 2
       ;;
     -o|--output)
@@ -58,8 +69,9 @@ while (( "$#" )); do
       echo -e "\nEPhIMM v 0.1 - Express Phylogenetic Inference based on Multiple Markers"
       echo -e "Written by Aleksei Korzhenkov, 2019-2020"
       echo -e "For new versions please check https://github.com/laxeye/EPhIMM\n"
-      echo -n "Usage: $0 [-p|--predict-proteins] [-e|--evalue <N>] [-g|--max-gap-fraction <0-100>] [-o|--output <directory>] "
-      echo -e "[-m|--markers <directory>] [-a|--auto] [-t|--threads <N>]"
+      echo -ne "Usage: $0 [-p|--predict-proteins] [-e|--evalue <N>] [-g|--max-gap-fraction <0-100>] [-o|--output <folder>] "
+      echo -ne "{[-m|--markers <folder>] | [-s|--sequences <folder>] " 
+      echo -e "[-a|--auto] [-t|--threads <N>]"
       echo "or"
       echo -e "$0 [-h|--help]\n"
       exit 0
@@ -91,7 +103,7 @@ if [[ $THREADS -gt $maxthreads ]]; then
 fi
 
 if [[ -d $OUTPUTFOLDER ]]; then
-    rm -r $OUTPUTFOLDER
+    rm -fr $OUTPUTFOLDER
 fi
 mkdir -p $OUTPUTFOLDER
 logfile="$OUTPUTFOLDER/fetching.log"
@@ -112,31 +124,39 @@ fi
 # Indexing fasta files
 echo -e "#$(date +"%T")\tIndexing files" | tee -a $logfile
 for file in *faa; do esl-sfetch --index $file > /dev/null; done
-
-echo "#Directory with HMM profiles of marker genes: $MRKDIR" | tee -a $logfile
-
-markercount=`ls $MRKDIR/*hmm | wc -l`
 genomecount=`ls *faa | wc -l`
 
+MARKERLIST=$OUTPUTFOLDER/markers.list
+ls $MRKDIR/ | grep $SEQEXT$ > $MARKERLIST
+markercount=`wc -l < $MARKERLIST`
+
 if [[ $markercount -eq 0 ]]; then
-    echo "No HMM profiles found in $MRKDIR" | tee -a $logfile
+    echo "No markers found in $MRKDIR" | tee -a $logfile
+    exit 1
 else
-    echo "#$markercount HMM profiles found" | tee -a $logfile
+    echo "#$markercount markers found in $MRKDIR" | tee -a $logfile
 fi
 
 echo -e "#$(date +"%T")\tSearching and extracting marker genes" | tee -a $logfile
 
-for marker in $(ls $MRKDIR/);
-    do if [[ -d $marker ]]; then
-        rm -r -f $marker
+for marker in $(cat $MARKERLIST); do
+  mrkpath=$MRKDIR$marker
+  marker=${marker/.$SEQEXT/}
+
+  if [[ -d $marker ]]; then
+      rm -r -f $marker
+  fi
+  mkdir $marker;
+
+  for file in *faa; do
+    result=$marker/${file/faa/out}
+    if [[ $USEBLAST -eq 0 ]]; then
+      hmmsearch --cpu $THREADS -E $EVALUE -o /dev/null --tblout /dev/stdout $mrkpath $file | grep -v "^#" > $result;
+    else
+      blastp -evalue $EVALUE -outfmt "6 sseqid qseqid slen qlen length evalue bitscore" -max_target_seqs 5 -query $mrkpath -subject $file -out $result;
     fi
-    mkdir $marker;
-    mrkpath=$MRKDIR$marker
 
-    for file in *faa;
-    do hmmsearch --cpu $THREADS -E $HMMEVALUE -o /dev/null --tblout /dev/stdout $mrkpath $file | grep -v "^#" > $marker/${file/faa/out};
-
-    lines=`wc -l < $marker/${file/faa/out}`
+    lines=`wc -l < $result`
 
     case $lines in
         0)
@@ -145,24 +165,25 @@ for marker in $(ls $MRKDIR/);
             echo "$marker.${file/.faa/}" >> $marker/missing.txt;
         		;;
         1)
-            esl-sfetch -o $marker/$file -n $marker.${file/.faa/} $file $(awk '{print $1}' $marker/${file/faa/out}) > /dev/null;
+            esl-sfetch -o $marker/$file -n $marker.${file/.faa/} $file $(awk '{print $1}' $result) > /dev/null;
             ;;
         *)
             echo -e "Marker gene \"$marker\" has many copies in $file! You should inspect sequences manually!" | tee -a $logfile;
             echo "$marker.${file/.faa/}" >> $marker/multicopy.txt;
             let n=1
-            for line in $(awk '{print $1}' $marker/${file/faa/out})
+            for line in $(awk '{print $1}' $result)
                 do esl-sfetch -n $marker.${file/.faa/}.$n $file $line >> $marker/$file;
                 ((n++));
             done;
             ;;
     esac
 
-    done;
+  done;
+
 done;
 
-
-for marker in $(ls $MRKDIR/); do
+for marker in $(cat $MARKERLIST); do
+  marker=${marker/.$SEQEXT/}
   if [[ -f $marker/multicopy.txt ]] ; then 
     cat $marker/*faa > $marker/$marker.1.faa ;
     if [[ -f $marker/missing.txt ]] ; then
@@ -193,27 +214,30 @@ for file in *faa;
 done;
 
 echo "#Genomes with more than 50% missing marker genes:" > $OUTPUTFOLDER/bad.genomes.txt
-grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$2 > "'"$markercount"'"/2' >> $OUTPUTFOLDER/bad.genomes.txt
-echo "#Genomes with more than 20% multi-copy marker genes:" >> $OUTPUTFOLDER/bad.genomes.txt
-grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$3 > "'"$markercount"'"/5' >> $OUTPUTFOLDER/bad.genomes.txt
+grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$2 > "'"$markercount"'" * 0.5 ' >> $OUTPUTFOLDER/bad.genomes.txt
+echo "#Genomes with share of multi-copy marker genes more than $MAXMULTICOPYSHARE:" >> $OUTPUTFOLDER/bad.genomes.txt
+grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$3 > "'"$markercount"'" * "'"$MAXMULTICOPYSHARE"'" ' >> $OUTPUTFOLDER/bad.genomes.txt
 
-echo -e "#Marker\tMissing markers\tMultiple copies" > $OUTPUTFOLDER/hmm.stats.txt
-for marker in $(ls $MRKDIR/);
-    do missing=`grep "$marker" $logfile | grep -c "not found"`
-    multi=`grep "$marker" $logfile | grep -c "many"`
-    echo -e "$marker\t$missing\t$multi" >> $OUTPUTFOLDER/hmm.stats.txt;
+echo -e "#Marker\tMissing markers\tMultiple copies" > $OUTPUTFOLDER/marker.stats.txt
+for marker in $(cat $MARKERLIST); do
+  marker=${marker/.$SEQEXT/}
+  missing=`grep "$marker" $logfile | grep -c "not found"`
+  multi=`grep "$marker" $logfile | grep -c "many"`
+  echo -e "$marker\t$missing\t$multi" >> $OUTPUTFOLDER/marker.stats.txt;
 done
 
-echo "#Markers missing in more than 50% genomes:" > $OUTPUTFOLDER/bad.hmms.txt
-grep -v "^#" $OUTPUTFOLDER/hmm.stats.txt | awk '$2 > "'"$genomecount"'"/2' >> $OUTPUTFOLDER/bad.hmms.txt
-echo "#Markers with multiple copies in more than 20% genomes:" >> $OUTPUTFOLDER/bad.hmms.txt
-grep -v "^#" $OUTPUTFOLDER/hmm.stats.txt | awk '$3 > "'"$genomecount"'"/5' >> $OUTPUTFOLDER/bad.hmms.txt
+echo "#Markers missing in more than 50% genomes:" > $OUTPUTFOLDER/bad.markers.txt
+grep -v "^#" $OUTPUTFOLDER/marker.stats.txt | awk '$2 > "'"$genomecount"'" * 0.5 ' >> $OUTPUTFOLDER/bad.markers.txt
+echo "#Markers with multiple copies in more than $MAXMULTICOPYSHARE genomes:" >> $OUTPUTFOLDER/bad.markers.txt
+grep -v "^#" $OUTPUTFOLDER/marker.stats.txt | awk '$3 > "'"$genomecount"'" * "'"$MAXMULTICOPYSHARE"'" ' >> $OUTPUTFOLDER/bad.markers.txt
 
-for file in *faa;
-do
+for file in *faa; do
     if ! grep -q "$file" $OUTPUTFOLDER/bad.genomes.txt ; then
         echo ">${file/.faa/}" > $OUTPUTFOLDER/$file;
-        cat *hmm/$file | sed 's/\*//' | grep -v ">" | grep -v "^X\+$"  >> $OUTPUTFOLDER/$file;
+        for marker in $(cat $MARKERLIST); do
+          marker=${marker/.$SEQEXT/}
+          cat $marker/$file | sed 's/\*//' | grep -v ">" | grep -v "^X\+$"  >> $OUTPUTFOLDER/$file;
+        done
     else
         echo "Genome $file will not be used because of incompleteness or contamination."
     fi
@@ -222,6 +246,7 @@ done
 cat $OUTPUTFOLDER/*faa > $OUTPUTFOLDER/all.markers.faa
 
 echo "Concatenated markers stored in \"$OUTPUTFOLDER/all.markers.faa\""
+
 
 echo -e "#$(date +"%T")\tPerforming MSA" | tee -a $logfile
 
