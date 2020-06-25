@@ -15,8 +15,13 @@ AUTO=0        # 1 to perform autoedit of alignment
 MAXGAPFRACTION=50  # Set maximum gap fraction in column to leave it in the alignment.
 PREDICT=0     # 1 to predict protein coding genes. Input will be genome assemblies *.fna.
 USEBLAST=0    # 1 to use BLASTp homology search instead of HMMER (default).
-SEQEXT="hmm"  # Extension of markers. Default is "hmm" for HMMER.
+MARKEREXT="hmm"  # Extension of markers. Default is "hmm" for HMMER.
 MAXMULTICOPYSHARE=0.5  # Max number of genomes, having more than one copy of marker gene.
+PROTEOMEEXT="faa"
+GENOMEEXT="fna"
+QUIET=0
+THREADS=1
+FORCEBH=0
 
 #Parse args
 while (( "$#" )); do
@@ -31,7 +36,7 @@ while (( "$#" )); do
       if [[ -d $2 ]]; then
         MRKDIR=$2
       fi
-      SEQEXT="faa"
+      MARKEREXT="faa"
       USEBLAST=1
       shift 2
       ;;
@@ -57,6 +62,18 @@ while (( "$#" )); do
       PREDICT=1
       shift
       ;;
+    -b|--besthit)
+      FORCEBH=1
+      shift
+      ;;
+    -x|--extension)
+      if [[ PREDICT -eq 1 ]]; then
+        GENOMEEXT=$2
+      else
+        PROTEOMEEXT=$2
+      fi
+      shift 2
+      ;;
     -a|--auto)
       AUTO=1
       shift
@@ -64,6 +81,10 @@ while (( "$#" )); do
     -t|--threads)
       THREADS=$2
       shift 2
+      ;;
+    -q|--quiet)
+      QUIET=1
+      shift
       ;;
     -h|--help)
       echo -e "\nEPhIMM v 0.1 - Express Phylogenetic Inference based on Multiple Markers"
@@ -82,7 +103,7 @@ while (( "$#" )); do
       ;;
     -*|--*=) # unsupported flags
       echo "Error: Unsupported flag $1" >&2
-      echo "Possible flags: -m, -e, -g, -o, -p, -a " >&2
+      echo "Possible flags: -m, -e, -g, -o, -p, -a, -t, -x " >&2
       exit 1
       ;;
     *) # preserve positional arguments
@@ -92,11 +113,14 @@ while (( "$#" )); do
   esac
 done
 
+function log {
+  if [[ $QUIET = 1 ]]; then
+    echo -e "#$(date +"%T")\t$1" >> $logfile
+  else
+    echo -e "#$(date +"%T")\t$1" | tee -a $logfile
+  fi
+}
 
-#Using half of available CPU threads for hmmsearch
-if [[ -z $THREADS ]]; then
-  THREADS=1
-fi
 maxthreads=`grep -c "^processor" /proc/cpuinfo`
 if [[ $THREADS -gt $maxthreads ]]; then
     THREADS=$maxthreads
@@ -108,11 +132,16 @@ fi
 mkdir -p $OUTPUTFOLDER
 logfile="$OUTPUTFOLDER/fetching.log"
 
-echo "#Analysys started at $(date)" | tee $logfile
+log "#Analysys started"
 
 # Predict CDS
 if [[ $PREDICT -eq 1 ]]; then
-    echo -e "#$(date +"%T")\tProtein prediction started" | tee -a $logfile
+    genomecount=`ls *$GENOMEEXT | wc -l`
+    if [[ $genomecount -lt 3 ]]; then
+      log "Error: too low number of genomes - $genomecount. Please check input files and extension."
+      exit 1
+    fi
+    log "Protein prediction started"
     for file in *fna;
       do aafile=${file/fna/faa};
       if ! [[ -f $aafile ]]; then
@@ -122,26 +151,26 @@ if [[ $PREDICT -eq 1 ]]; then
 fi
 
 # Indexing fasta files
-echo -e "#$(date +"%T")\tIndexing files" | tee -a $logfile
+log "Indexing files"
 for file in *faa; do esl-sfetch --index $file > /dev/null; done
 genomecount=`ls *faa | wc -l`
 
 MARKERLIST=$OUTPUTFOLDER/markers.list
-ls $MRKDIR/ | grep $SEQEXT$ > $MARKERLIST
+ls $MRKDIR/ | grep $MARKEREXT$ > $MARKERLIST
 markercount=`wc -l < $MARKERLIST`
 
 if [[ $markercount -eq 0 ]]; then
-    echo "No markers found in $MRKDIR" | tee -a $logfile
+    log "Error! No markers found in $MRKDIR"
     exit 1
 else
-    echo "#$markercount markers found in $MRKDIR" | tee -a $logfile
+    log "#$markercount markers found in $MRKDIR"
 fi
 
-echo -e "#$(date +"%T")\tSearching and extracting marker genes" | tee -a $logfile
+log "#Searching and extracting marker genes"
 
 for marker in $(cat $MARKERLIST); do
   mrkpath=$MRKDIR$marker
-  marker=${marker/.$SEQEXT/}
+  marker=${marker/.$MARKEREXT/}
 
   if [[ -d $marker ]]; then
       rm -r -f $marker
@@ -153,14 +182,14 @@ for marker in $(cat $MARKERLIST); do
     if [[ $USEBLAST -eq 0 ]]; then
       hmmsearch --cpu $THREADS -E $EVALUE -o /dev/null --tblout /dev/stdout $mrkpath $file | grep -v "^#" > $result;
     else
-      blastp -evalue $EVALUE -outfmt "6 sseqid qseqid slen qlen length evalue bitscore" -max_target_seqs 5 -query $mrkpath -subject $file -out $result;
+      blastp -evalue $EVALUE -outfmt "6 sseqid qseqid slen qlen length pident ppos evalue bitscore" -max_target_seqs 5 -query $mrkpath -subject $file -out $result;
     fi
 
     lines=`wc -l < $result`
 
     case $lines in
         0)
-            echo -e "Marker gene \"$marker\" not found in $file!" | tee -a $logfile;
+            log "Marker gene \"$marker\" not found in $file."
     		    echo -e ">$marker.${file/.faa/}\nXXXXXX" > $marker/$file;
             echo "$marker.${file/.faa/}" >> $marker/missing.txt;
         		;;
@@ -168,13 +197,17 @@ for marker in $(cat $MARKERLIST); do
             esl-sfetch -o $marker/$file -n $marker.${file/.faa/} $file $(awk '{print $1}' $result) > /dev/null;
             ;;
         *)
-            echo -e "Marker gene \"$marker\" has many copies in $file! You should inspect sequences manually!" | tee -a $logfile;
-            echo "$marker.${file/.faa/}" >> $marker/multicopy.txt;
-            let n=1
-            for line in $(awk '{print $1}' $result)
+            log "Marker gene \"$marker\" has many copies in $file."
+            if [[ $FORCEBH -eq 1 ]]; then
+              esl-sfetch -o $marker/$file -n $marker.${file/.faa/} $file $(awk '{print $1}' $result | head -1) > /dev/null;
+            else
+              echo "$marker.${file/.faa/}" >> $marker/multicopy.txt;
+              let n=1
+              for line in $(awk '{print $1}' $result)
                 do esl-sfetch -n $marker.${file/.faa/}.$n $file $line >> $marker/$file;
                 ((n++));
-            done;
+              done;
+            fi
             ;;
     esac
 
@@ -182,8 +215,9 @@ for marker in $(cat $MARKERLIST); do
 
 done;
 
+log "Working with multicopy markers"
 for marker in $(cat $MARKERLIST); do
-  marker=${marker/.$SEQEXT/}
+  marker=${marker/.$MARKEREXT/}
   if [[ -f $marker/multicopy.txt ]] ; then 
     cat $marker/*faa > $marker/$marker.1.faa ;
     if [[ -f $marker/missing.txt ]] ; then
@@ -196,7 +230,7 @@ for marker in $(cat $MARKERLIST); do
     java -jar $EPHIMMPATH/BioKotlin.jar DistMeanProtJC $marker/aln.faa | grep -f $marker/multicopy.txt > $marker/multicopy.dist ;
     rm -f $marker/aln.faa
     for mcopy in $(cat $marker/multicopy.txt); do
-      grep $mcopy $marker/multicopy.dist | sort -nk 2 | cut -f 1 | head -1 > $marker/keep.txt
+      grep $mcopy $marker/multicopy.dist | sort -k 2 | cut -f 1 | head -1 > $marker/keep.txt
       genome=${mcopy/$marker./}
       java -jar $EPHIMMPATH/BioKotlin.jar ExtractByName $marker/$genome.faa $marker/keep.txt > $marker/$genome.1.faa
       mv $marker/$genome.1.faa $marker/$genome.faa
@@ -204,7 +238,7 @@ for marker in $(cat $MARKERLIST); do
   fi
 done
 
-echo -e "#$(date +"%T")\tCollecting statistics" | tee -a $logfile
+log "Collecting markers"
 
 echo -e "#Genome\tMissing markers\tMultiple copies" > $OUTPUTFOLDER/genomes.stats.txt
 for file in *faa;
@@ -220,7 +254,7 @@ grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$3 > "'"$markercount"'" * "'
 
 echo -e "#Marker\tMissing markers\tMultiple copies" > $OUTPUTFOLDER/marker.stats.txt
 for marker in $(cat $MARKERLIST); do
-  marker=${marker/.$SEQEXT/}
+  marker=${marker/.$MARKEREXT/}
   missing=`grep "$marker" $logfile | grep -c "not found"`
   multi=`grep "$marker" $logfile | grep -c "many"`
   echo -e "$marker\t$missing\t$multi" >> $OUTPUTFOLDER/marker.stats.txt;
@@ -235,7 +269,7 @@ for file in *faa; do
     if ! grep -q "$file" $OUTPUTFOLDER/bad.genomes.txt ; then
         echo ">${file/.faa/}" > $OUTPUTFOLDER/$file;
         for marker in $(cat $MARKERLIST); do
-          marker=${marker/.$SEQEXT/}
+          marker=${marker/.$MARKEREXT/}
           cat $marker/$file | sed 's/\*//' | grep -v ">" | grep -v "^X\+$"  >> $OUTPUTFOLDER/$file;
         done
     else
@@ -245,10 +279,10 @@ done
 
 cat $OUTPUTFOLDER/*faa > $OUTPUTFOLDER/all.markers.faa
 
-echo "Concatenated markers stored in \"$OUTPUTFOLDER/all.markers.faa\""
+log "Concatenated markers stored in \"$OUTPUTFOLDER/all.markers.faa\""
 
 
-echo -e "#$(date +"%T")\tPerforming MSA" | tee -a $logfile
+log "Performing MSA"
 
 mafft --thread -1 --auto  $OUTPUTFOLDER/all.markers.faa | sed 's/X/-/g' > $OUTPUTFOLDER/all.aligned.faa
 
@@ -257,7 +291,7 @@ alnfilename="$OUTPUTFOLDER/all.aligned.e.faa"
 if [[ $AUTO -eq 1 ]]; then
 
   java -jar $EPHIMMPATH/BioKotlin.jar AlignmentClearGaps $OUTPUTFOLDER/all.aligned.faa $MAXGAPFRACTION > $alnfilename
-  echo -e "#$(date +"%T")\tPerforming autoedit of MSA" | tee -a $logfile
+  log "Performing autoedit of MSA"
 
 else
 
@@ -269,16 +303,15 @@ else
 
   if [[ $response -eq "Y" ]]; then
       java -jar $EPHIMMPATH/BioKotlin.jar AlignmentClearGaps $OUTPUTFOLDER/all.aligned.faa $MAXGAPFRACTION > $alnfilename
-      echo -e "#$(date +"%T")\tPerforming autoedit of MSA" | tee -a $logfile
+      log "Performing autoedit of MSA"
   else
       read -p "Provide a filename of edited alignment:" alnfilename
   fi
 
 fi
 
-echo -e "#$(date +"%T")\tPerforming phylogenetic inference" | tee -a $logfile
+log "Performing phylogenetic inference"
 
-fasttree -gamma -lg $alnfilename > $OUTPUTFOLDER/all.markers.nwk
+fasttree -log $OUTPUTFOLDER/fastree.log -gamma -lg $alnfilename > $OUTPUTFOLDER/all.markers.nwk
 
-echo -e "#$(date +"%T")\tWorkflow finished" | tee -a $logfile
-
+log "Workflow finished"
