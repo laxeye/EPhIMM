@@ -1,7 +1,9 @@
 # EPhIMM
 **E**xpress **Ph**ylogenetic **I**nference based on **M**ultiple **M**arkers
 
-[![DOI](https://img.shields.io/badge/DOI-10.18699%2fBGRS%2dSB%2d2020%2d027-green.svg)](https://dx.doi.org/10.18699/BGRS/SB-2020-027) **EPhIMM** is a shell script for express phylogenetic analysis of prokaryotic genomes.
+[![Publication](https://img.shields.io/badge/DOI-published-green.svg)](https://dx.doi.org/10.18699/BGRS/SB-2020-027)
+
+**EPhIMM** is a shell script for express phylogenetic analysis of prokaryotic genomes.
 
 
 ## Dependencies
