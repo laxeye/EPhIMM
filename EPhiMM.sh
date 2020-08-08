@@ -143,7 +143,7 @@ if [[ $PREDICT -eq 1 ]]; then
     fi
     log "Protein prediction started"
     for file in *fna;
-      do aafile=${file/fna/faa};
+      do aafile=${file/$GENOMEEXT/faa};
       if ! [[ -f $aafile ]]; then
         prodigal -o /dev/null -i $file -a $aafile -q;
       fi;
