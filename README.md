@@ -1,7 +1,7 @@
 # EPhIMM
 **E**xpress **Ph**ylogenetic **I**nference based on **M**ultiple **M**arkers
 
-**EPhIMM** is a shell script for express phylogenetic analysis of prokaryotic genomes.
+[![DOI](https://img.shields.io/badge/DOI-10.18699%2fBGRS%2dSB%2d2020%2d027-green.svg)](https://dx.doi.org/10.18699/BGRS/SB-2020-027) **EPhIMM** is a shell script for express phylogenetic analysis of prokaryotic genomes.
 
 
 ## Dependencies
@@ -76,6 +76,11 @@ Default e-value for hmmsearch is 1e-6, You can set it with option **-e**, e.g.:
 
 `EPhIMM.sh -e 1e-10`.
 
+## Citing
+
+If You find EPhIMM usefull please cite it as:
+
+Korzhenkov A. (2020) EPhIMM: computational workflow for fast phlyogenetic inference based on multiple alignment of prokaryotic single copy marker genes. Presented at: BGRS/SB-2020, Novosibirsk, Russia. DOI: [10.18699/BGRS/SB-2020-027](https://dx.doi.org/10.18699/BGRS/SB-2020-027)
 
 ## References
 
