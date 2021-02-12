@@ -22,6 +22,8 @@ GENOMEEXT="fna"
 QUIET=0
 THREADS=1
 FORCEBH=0
+PREDICTEDEXT="faa"
+USENUCL=0
 
 #Parse args
 while (( "$#" )); do
@@ -74,6 +76,11 @@ while (( "$#" )); do
       fi
       shift 2
       ;;
+    -d|--nucleotide)
+      PREDICTEDEXT="fna"
+      USENUCL=1
+      shift
+      ;;
     -a|--auto)
       AUTO=1
       shift
@@ -87,12 +94,13 @@ while (( "$#" )); do
       shift
       ;;
     -h|--help)
-      echo -e "\nEPhIMM v 0.1 - Express Phylogenetic Inference based on Multiple Markers"
-      echo -e "Written by Aleksei Korzhenkov, 2019-2020"
+      echo -e "\nEPhIMM v 0.3 - Express Phylogenetic Inference based on Multiple Markers"
+      echo -e "Written by Aleksei Korzhenkov, 2019-2021"
       echo -e "For new versions please check https://github.com/laxeye/EPhIMM\n"
-      echo -ne "Usage: $0 [-p|--predict-proteins] [-e|--evalue <N>] [-g|--max-gap-fraction <0-100>] [-o|--output <folder>] "
+      echo -ne "Usage: $0 [-p|--predict-proteins] [-e|--evalue <N>] "
+      echo -ne "[-g|--max-gap-fraction <0-100>] [-o|--output <folder>] "
       echo -ne "{[-m|--markers <folder>] | [-s|--sequences <folder>] " 
-      echo -e "[-a|--auto] [-t|--threads <N>]"
+      echo -e "[-d|--nucleotide] [-a|--auto] [-t|--threads <N>]"
       echo "or"
       echo -e "$0 [-h|--help]\n"
       exit 0
@@ -133,7 +141,6 @@ mkdir -p $OUTPUTFOLDER
 logfile="$OUTPUTFOLDER/fetching.log"
 
 log "#Analysys started"
-
 # Predict CDS
 if [[ $PREDICT -eq 1 ]]; then
     genomecount=`ls *$GENOMEEXT | wc -l`
@@ -141,18 +148,19 @@ if [[ $PREDICT -eq 1 ]]; then
       log "Error: too low number of genomes - $genomecount. Please check input files and extension."
       exit 1
     fi
-    log "Protein prediction started"
+    log "Protein prediction and file indexing started"
     for file in *fna;
-      do aafile=${file/$GENOMEEXT/faa};
+      do aafile=cds.${file/$GENOMEEXT/faa};
+      nucfile=cds.${file/$GENOMEEXT/fna}
       if ! [[ -f $aafile ]]; then
-        prodigal -o /dev/null -i $file -a $aafile -q;
+        prodigal -o /dev/null -i $file -a $aafile -d $nucfile -q;
+        esl-sfetch --index $aafile > /dev/null
+        esl-sfetch --index $nucfile > /dev/null
       fi;
     done
 fi
 
-# Indexing fasta files
-log "Indexing files"
-for file in *faa; do esl-sfetch --index $file > /dev/null; done
+log "Processing files"
 genomecount=`ls *faa | wc -l`
 
 MARKERLIST=$OUTPUTFOLDER/markers.list
@@ -177,8 +185,9 @@ for marker in $(cat $MARKERLIST); do
   fi
   mkdir $marker;
 
-  for file in *faa; do
-    result=$marker/${file/faa/out}
+  for file in cds*faa; do
+    result=$marker/${file%.*}.out
+
     if [[ $USEBLAST -eq 0 ]]; then
       hmmsearch --cpu $THREADS -E $EVALUE -o /dev/null --tblout /dev/stdout $mrkpath $file | grep -v "^#" > $result;
     else
@@ -190,11 +199,11 @@ for marker in $(cat $MARKERLIST); do
     case $lines in
         0)
             log "Marker gene \"$marker\" not found in $file."
-    		    echo -e ">$marker.${file/.faa/}\nXXXXXX" > $marker/$file;
+            echo -e ">$marker.${file/.faa/}\nXXXXXX" > $marker/${file/.faa/.fasta};
             echo "$marker.${file/.faa/}" >> $marker/missing.txt;
-        		;;
+            ;;
         1)
-            esl-sfetch -o $marker/$file -n $marker.${file/.faa/} $file $(awk '{print $1}' $result) > /dev/null;
+            esl-sfetch -o $marker/${file/.faa/.fasta} -n $marker.${file/.faa/} ${file/.faa/.$PREDICTEDEXT} $(awk '{print $1}' $result) > /dev/null;
             ;;
         *)
             log "Marker gene \"$marker\" has many copies in $file."
@@ -204,7 +213,7 @@ for marker in $(cat $MARKERLIST); do
               echo "$marker.${file/.faa/}" >> $marker/multicopy.txt;
               let n=1
               for line in $(awk '{print $1}' $result)
-                do esl-sfetch -n $marker.${file/.faa/}.$n $file $line >> $marker/$file;
+                do esl-sfetch -n $marker.${file/.faa/}.$n ${file/.faa/$GENOMEEXT} $line >> $marker/${file/.faa/.fasta};
                 ((n++));
               done;
             fi
@@ -269,8 +278,8 @@ for file in *faa; do
     if ! grep -q "$file" $OUTPUTFOLDER/bad.genomes.txt ; then
         echo ">${file/.faa/}" > $OUTPUTFOLDER/$file;
         for marker in $(cat $MARKERLIST); do
-          marker=${marker/.$MARKEREXT/}
-          cat $marker/$file | sed 's/\*//' | grep -v ">" | grep -v "^X\+$"  >> $OUTPUTFOLDER/$file;
+          marker=${marker%.*}
+          cat $marker/${file/.faa/.fasta} | sed 's/\*//' | grep -v ">" | grep -v "^X\+$"  >> $OUTPUTFOLDER/$file;
         done
     else
         echo "Genome $file will not be used because of incompleteness or contamination."
@@ -312,6 +321,10 @@ fi
 
 log "Performing phylogenetic inference"
 
-fasttree -log $OUTPUTFOLDER/fastree.log -gamma -lg $alnfilename > $OUTPUTFOLDER/all.markers.nwk
+if [[ $USENUCL -eq 1 ]]; then
+  fasttree -log $OUTPUTFOLDER/fastree.log -gamma -gtr $alnfilename > $OUTPUTFOLDER/all.markers.nwk
+else
+  fasttree -log $OUTPUTFOLDER/fastree.log -gamma -lg $alnfilename > $OUTPUTFOLDER/all.markers.nwk
+fi
 
 log "Workflow finished"
