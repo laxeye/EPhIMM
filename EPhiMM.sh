@@ -213,7 +213,7 @@ for marker in $(cat $MARKERLIST); do
               echo "$marker.${file/.faa/}" >> $marker/multicopy.txt;
               let n=1
               for line in $(awk '{print $1}' $result)
-                do esl-sfetch -n $marker.${file/.faa/}.$n ${file/.faa/$GENOMEEXT} $line >> $marker/${file/.faa/.fasta};
+                do esl-sfetch -n $marker.${file/.faa/}.$n ${file/.faa/.$GENOMEEXT} $line >> $marker/${file/.faa/.fasta};
                 ((n++));
               done;
             fi
@@ -228,21 +228,21 @@ log "Working with multicopy markers"
 for marker in $(cat $MARKERLIST); do
   marker=${marker/.$MARKEREXT/}
   if [[ -f $marker/multicopy.txt ]] ; then 
-    cat $marker/*faa > $marker/$marker.1.faa ;
+    cat $marker/*fasta > $marker/$marker.1.fasta ;
     if [[ -f $marker/missing.txt ]] ; then
-      java -jar $EPHIMMPATH/BioKotlin.jar RemoveByName $marker/$marker.1.faa $marker/missing.txt > $marker/$marker.faa ;
-      rm -f $marker/$marker.1.faa
+      java -jar $EPHIMMPATH/BioKotlin.jar RemoveByName $marker/$marker.1.fasta $marker/missing.txt > $marker/$marker.fasta ;
+      rm -f $marker/$marker.1.fasta
     else
-      mv $marker/$marker.1.faa $marker/$marker.faa ;
+      mv $marker/$marker.1.fasta $marker/$marker.fasta ;
     fi
-    mafft --quiet --auto $marker/$marker.faa > $marker/aln.faa ;
-    java -jar $EPHIMMPATH/BioKotlin.jar DistMeanProtJC $marker/aln.faa | grep -f $marker/multicopy.txt > $marker/multicopy.dist ;
-    rm -f $marker/aln.faa
+    mafft --quiet --auto $marker/$marker.fasta > $marker/aln.fasta ;
+    java -jar $EPHIMMPATH/BioKotlin.jar DistMeanProtJC $marker/aln.fasta | grep -f $marker/multicopy.txt > $marker/multicopy.dist ;
+    rm -f $marker/aln.fasta
     for mcopy in $(cat $marker/multicopy.txt); do
       grep $mcopy $marker/multicopy.dist | sort -k 2 | cut -f 1 | head -1 > $marker/keep.txt
       genome=${mcopy/$marker./}
-      java -jar $EPHIMMPATH/BioKotlin.jar ExtractByName $marker/$genome.faa $marker/keep.txt > $marker/$genome.1.faa
-      mv $marker/$genome.1.faa $marker/$genome.faa
+      java -jar $EPHIMMPATH/BioKotlin.jar ExtractByName $marker/$genome.fasta $marker/keep.txt > $marker/$genome.1.fasta
+      mv $marker/$genome.1.fasta $marker/$genome.fasta
     done
   fi
 done
@@ -286,25 +286,25 @@ for file in *faa; do
     fi
 done
 
-cat $OUTPUTFOLDER/*faa > $OUTPUTFOLDER/all.markers.faa
+cat $OUTPUTFOLDER/*faa > $OUTPUTFOLDER/all.markers.fasta
 
-log "Concatenated markers stored in \"$OUTPUTFOLDER/all.markers.faa\""
+log "Concatenated markers stored in \"$OUTPUTFOLDER/all.markers.fasta\""
 
 
 log "Performing MSA"
 
-mafft --thread -1 --auto  $OUTPUTFOLDER/all.markers.faa | sed 's/X/-/g' > $OUTPUTFOLDER/all.aligned.faa
+mafft --thread -1 --auto  $OUTPUTFOLDER/all.markers.fasta | sed 's/X/-/g' > $OUTPUTFOLDER/all.aligned.fasta
 
-alnfilename="$OUTPUTFOLDER/all.aligned.e.faa"
+alnfilename="$OUTPUTFOLDER/all.aligned.e.fasta"
 
 if [[ $AUTO -eq 1 ]]; then
 
-  java -jar $EPHIMMPATH/BioKotlin.jar AlignmentClearGaps $OUTPUTFOLDER/all.aligned.faa $MAXGAPFRACTION > $alnfilename
+  java -jar $EPHIMMPATH/BioKotlin.jar AlignmentClearGaps $OUTPUTFOLDER/all.aligned.fasta $MAXGAPFRACTION > $alnfilename
   log "Performing autoedit of MSA"
 
 else
 
-  echo "It's strictly recommended to check alignment file \"$OUTPUTFOLDER/all.aligned.faa\""
+  echo "It's strictly recommended to check alignment file \"$OUTPUTFOLDER/all.aligned.fasta\""
   echo "You may automaticly delete all columns with more than $MAXGAPFRACTION% gaps"
 
   read -p "Press \"N\" if You like to edit file manually.
