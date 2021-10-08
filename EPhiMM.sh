@@ -158,6 +158,10 @@ if [[ $PREDICT -eq 1 ]]; then
         esl-sfetch --index $nucfile > /dev/null
       fi;
     done
+else
+  for aafile in *faa; do
+    esl-sfetch --index $aafile > /dev/null;
+  done
 fi
 
 log "Processing files"
@@ -185,7 +189,7 @@ for marker in $(cat $MARKERLIST); do
   fi
   mkdir $marker;
 
-  for file in cds*faa; do
+  for file in *faa; do
     result=$marker/${file%.*}.out
 
     if [[ $USEBLAST -eq 0 ]]; then
@@ -212,10 +216,17 @@ for marker in $(cat $MARKERLIST); do
             else
               echo "$marker.${file/.faa/}" >> $marker/multicopy.txt;
               let n=1
-              for line in $(awk '{print $1}' $result)
-                do esl-sfetch -n $marker.${file/.faa/}.$n ${file/.faa/.$GENOMEEXT} $line >> $marker/${file/.faa/.fasta};
-                ((n++));
-              done;
+              if [[ $USENUCL -eq 1 ]]; then
+                for line in $(awk '{print $1}' $result)
+                  do esl-sfetch -n $marker.${file/.faa/}.$n ${file/.faa/.$GENOMEEXT} $line >> $marker/${file/.faa/.fasta};
+                  ((n++));
+                done;
+              else
+                for line in $(awk '{print $1}' $result)
+                  do esl-sfetch -n $marker.${file/.faa/}.$n $file $line >> $marker/${file/.faa/.fasta};
+                  ((n++));
+                done;
+              fi
             fi
             ;;
     esac
