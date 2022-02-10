@@ -212,7 +212,7 @@ for marker in $(cat $MARKERLIST); do
         *)
             log "Marker gene \"$marker\" has many copies in $file."
             if [[ $FORCEBH -eq 1 ]]; then
-              esl-sfetch -o $marker/$file -n $marker.${file/.faa/} $file $(awk '{print $1}' $result | head -1) > /dev/null;
+              esl-sfetch -o $marker/${file/.faa/.fasta} -n $marker.${file/.faa/} $file $(awk '{print $1}' $result | head -1) > /dev/null;
             else
               echo "$marker.${file/.faa/}" >> $marker/multicopy.txt;
               let n=1
