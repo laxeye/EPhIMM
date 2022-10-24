@@ -24,6 +24,7 @@ THREADS=1
 FORCEBH=0
 PREDICTEDEXT="faa"
 USENUCL=0
+MAXMISSINGMARKERS=0.66 # Max missing markers
 
 #Parse args
 while (( "$#" )); do
@@ -267,10 +268,10 @@ for file in *faa;
     echo -e "$file\t$missing\t$multi" >> $OUTPUTFOLDER/genomes.stats.txt;
 done;
 
-echo "#Genomes with more than 50% missing marker genes:" > $OUTPUTFOLDER/bad.genomes.txt
-grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$2 > "'"$markercount"'" * 0.5 ' >> $OUTPUTFOLDER/bad.genomes.txt
+echo "#Genomes with more than $MAXMISSINGMARKERS missing marker genes:" > $OUTPUTFOLDER/bad.genomes.txt
+grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$2 > '"$markercount"' * '"$MAXMISSINGMARKERS"' ' >> $OUTPUTFOLDER/bad.genomes.txt
 echo "#Genomes with share of multi-copy marker genes more than $MAXMULTICOPYSHARE:" >> $OUTPUTFOLDER/bad.genomes.txt
-grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$3 > "'"$markercount"'" * "'"$MAXMULTICOPYSHARE"'" ' >> $OUTPUTFOLDER/bad.genomes.txt
+grep -v "^#" $OUTPUTFOLDER/genomes.stats.txt | awk '$3 > '"$markercount"' * '"$MAXMULTICOPYSHARE"' ' >> $OUTPUTFOLDER/bad.genomes.txt
 
 echo -e "#Marker\tMissing markers\tMultiple copies" > $OUTPUTFOLDER/marker.stats.txt
 for marker in $(cat $MARKERLIST); do
@@ -281,9 +282,9 @@ for marker in $(cat $MARKERLIST); do
 done
 
 echo "#Markers missing in more than 50% genomes:" > $OUTPUTFOLDER/bad.markers.txt
-grep -v "^#" $OUTPUTFOLDER/marker.stats.txt | awk '$2 > "'"$genomecount"'" * 0.5 ' >> $OUTPUTFOLDER/bad.markers.txt
+grep -v "^#" $OUTPUTFOLDER/marker.stats.txt | awk '$2 > '"$genomecount"' * 0.5 ' >> $OUTPUTFOLDER/bad.markers.txt
 echo "#Markers with multiple copies in more than $MAXMULTICOPYSHARE genomes:" >> $OUTPUTFOLDER/bad.markers.txt
-grep -v "^#" $OUTPUTFOLDER/marker.stats.txt | awk '$3 > "'"$genomecount"'" * "'"$MAXMULTICOPYSHARE"'" ' >> $OUTPUTFOLDER/bad.markers.txt
+grep -v "^#" $OUTPUTFOLDER/marker.stats.txt | awk '$3 > '"$genomecount"' * '"$MAXMULTICOPYSHARE"' ' >> $OUTPUTFOLDER/bad.markers.txt
 
 for file in *faa; do
     if ! grep -q "$file" $OUTPUTFOLDER/bad.genomes.txt ; then
